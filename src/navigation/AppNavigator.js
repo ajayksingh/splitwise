@@ -2,8 +2,8 @@ import React from 'react';
 import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 
-const linking = {
-  prefixes: ['https://ajayksingh.github.io/splitwise', 'splitwise://'],
+const linking = Platform.OS !== 'web' ? {
+  prefixes: ['splitwise://'],
   config: {
     screens: {
       Auth: 'login',
@@ -19,7 +19,7 @@ const linking = {
       Profile: 'profile',
     },
   },
-};
+} : undefined;
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';

@@ -6,14 +6,16 @@ const NetInfo = Platform.OS !== 'web' ? require('@react-native-community/netinfo
 import {
   getCurrentUser, loginUser, registerUser, logoutUser,
   getGroups, getFriends, calculateBalances,
-  getActivity, seedDemoData, syncFromSupabase,
+  getActivity, seedDemoData,
 } from '../services/storage';
 import { loadSelectedCurrency, saveSelectedCurrency, detectDefaultCurrency } from '../services/currency';
-import { flushQueue, getQueueLength } from '../services/syncService';
 import { Analytics, setAnalyticsUser } from '../services/analytics';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 const AppContext = createContext({});
+
+// How often to poll Supabase for remote changes (ms)
+const POLL_INTERVAL_MS = 30000;
 
 export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -30,6 +32,11 @@ export const AppProvider = ({ children }) => {
   const [syncStatus, setSyncStatus] = useState(null); // null | 'offline' | 'syncing' | 'synced' | 'error'
   const [pendingCount, setPendingCount] = useState(0);
   const syncTimeoutRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+  const userRef = useRef(null);
+
+  // Keep userRef in sync so polling closure always has latest user
+  useEffect(() => { userRef.current = user; }, [user]);
 
   useEffect(() => {
     seedDemoData();
@@ -60,16 +67,10 @@ export const AppProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Network listener — auto-sync when coming back online
+  // Network listener — reload data when coming back online
   useEffect(() => {
     if (Platform.OS === 'web') {
-      const handleOnline = async () => {
-        setIsOnline(true);
-        if (isSupabaseConfigured()) {
-          const count = await getQueueLength();
-          if (count > 0) triggerSync();
-        }
-      };
+      const handleOnline = () => { setIsOnline(true); loadData().catch(() => {}); };
       const handleOffline = () => setIsOnline(false);
       window.addEventListener('online', handleOnline);
       window.addEventListener('offline', handleOffline);
@@ -78,65 +79,49 @@ export const AppProvider = ({ children }) => {
         window.removeEventListener('offline', handleOffline);
       };
     }
-    const unsubscribe = NetInfo.addEventListener(async (state) => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
       const online = state.isConnected && state.isInternetReachable !== false;
       setIsOnline(online);
-
-      if (online && isSupabaseConfigured()) {
-        const count = await getQueueLength();
-        if (count > 0) {
-          triggerSync();
-        }
-      }
+      if (online) loadData().catch(() => {});
     });
     return () => unsubscribe();
   }, []);
 
   const triggerSync = useCallback(async () => {
-    if (!isSupabaseConfigured()) return;
-
-    setSyncStatus('syncing');
-    try {
-      const { synced, failed } = await flushQueue();
-      const remaining = await getQueueLength();
-      setPendingCount(remaining);
-
-      if (failed > 0) {
-        setSyncStatus('error');
-        Analytics.syncError(`${failed} items failed`);
-        clearSyncStatusAfter(4000);
-      } else if (synced > 0) {
-        setSyncStatus('synced');
-        Analytics.syncCompleted(synced);
-        clearSyncStatusAfter(2500);
-      } else {
-        setSyncStatus(null);
-      }
-    } catch (e) {
-      setSyncStatus('error');
-      clearSyncStatusAfter(4000);
-    }
-  }, []);
+    await loadData();
+  }, [loadData]);
 
   const clearSyncStatusAfter = (ms) => {
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = setTimeout(() => setSyncStatus(null), ms);
   };
 
-  // Called after any write operation to show the right banner
+  // Called after any write operation to refresh data
   const notifyWrite = useCallback(async (action) => {
-    const count = await getQueueLength();
-    setPendingCount(count);
-
     if (!isOnline) {
       setSyncStatus('offline');
       Analytics.offlineSave(action);
-    } else if (isSupabaseConfigured()) {
-      // Small delay to batch rapid writes
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-      syncTimeoutRef.current = setTimeout(() => triggerSync(), 800);
+      return;
     }
-  }, [isOnline, triggerSync]);
+    setSyncStatus('synced');
+    clearSyncStatusAfter(1500);
+    await loadData();
+  }, [isOnline, loadData]);
+
+  const loadData = useCallback(async () => {
+    if (!userRef.current) return;
+    try {
+      const [g, f, b, a] = await Promise.all([
+        getGroups(userRef.current.id, userRef.current.email),
+        getFriends(userRef.current.id),
+        calculateBalances(userRef.current.id),
+        getActivity(userRef.current.id),
+      ]);
+      setGroups(g); setFriends(f); setBalances(b); setActivity(a);
+    } catch (e) {
+      console.error('Load data error:', e);
+    }
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -146,30 +131,55 @@ export const AppProvider = ({ children }) => {
     }
   }, [user, refreshTrigger]);
 
-  const loadData = useCallback(async () => {
-    if (!user) return;
-    try {
-      const [g, f, b, a] = await Promise.all([
-        getGroups(user.id),
-        getFriends(user.id),
-        calculateBalances(user.id),
-        getActivity(user.id),
-      ]);
-      console.log('[loadData] groups:', g.length, 'user:', user.id);
-      setGroups(g); setFriends(f); setBalances(b); setActivity(a);
-    } catch (e) {
-      console.error('Load data error:', e);
-    }
-  }, [user]);
-
   const refresh = useCallback(() => {
     setRefreshTrigger(t => t + 1);
   }, []);
 
   const syncData = useCallback(async () => {
-    if (!user || !isSupabaseConfigured()) return;
-    await syncFromSupabase(user.id);
     await loadData();
+  }, [loadData]);
+
+  // Background polling: pull remote changes every 30 seconds while logged in
+  useEffect(() => {
+    if (!user || !isSupabaseConfigured()) {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const poll = async () => {
+      if (!userRef.current) return;
+      try { await loadData(); } catch (e) {}
+    };
+
+    // Start polling
+    pollIntervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [user, loadData]);
+
+  // Supabase Realtime: subscribe to changes in groups/expenses/settlements/friends
+  useEffect(() => {
+    if (!user || !supabase || !isSupabaseConfigured()) return;
+
+    const channel = supabase
+      .channel(`user-sync-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => { loadData().catch(() => {}); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => { loadData().catch(() => {}); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settlements' }, () => { loadData().catch(() => {}); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friends' }, () => { loadData().catch(() => {}); })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, loadData]);
 
   const setCurrency = async (code) => {

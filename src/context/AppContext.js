@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+// NetInfo crashes on web at import time (calls addListener on null native module)
+// Lazy-require only on native
+const NetInfo = Platform.OS !== 'web' ? require('@react-native-community/netinfo').default : null;
 import {
   getCurrentUser, loginUser, registerUser, logoutUser,
   getGroups, getFriends, calculateBalances,

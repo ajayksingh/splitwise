@@ -5,12 +5,12 @@ name: "HELPER: Login with demo account"
 - tapOn:
     text: "Continue"
     optional: true
-# Make sure we're on Sign In tab
+# Switch to Sign In tab if needed
 - tapOn:
     text: "Sign In"
     optional: true
+# Demo button auto-logs in — no need to tap Submit after
 - tapOn: "Use Demo Account (alice@demo.com)"
-- tapOn: "Sign In"
 - extendedWaitUntil:
     visible: "Total balance"
     timeout: 20000

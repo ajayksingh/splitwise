@@ -7,6 +7,12 @@ name: "SMOKE: Full critical path smoke test"
 
 # Expo Go opens to dev server picker — tap the running server to open the app
 - tapOn:
+    text: "exp://10.0.2.2:8082"
+    optional: true
+- tapOn:
+    text: "exp://10.0.0.118:8082"
+    optional: true
+- tapOn:
     text: "exp://10.0.2.2:8081"
     optional: true
 - tapOn:
@@ -23,11 +29,11 @@ name: "SMOKE: Full critical path smoke test"
     text: "Continue"
     optional: true
 
-# If on auth screen, login
+# If on auth screen, login with real credentials
 - runFlow:
     when:
       visible: "Sign In"
-    file: "helpers/login_demo.yaml"
+    file: "helpers/login_real.yaml"
 
 # Navigate to Home tab (handles case where we're already logged in on another tab)
 - tapOn:

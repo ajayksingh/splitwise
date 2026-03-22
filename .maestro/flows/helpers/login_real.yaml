@@ -1,0 +1,27 @@
+appId: host.exp.exponent
+name: "HELPER: Login with real account"
+---
+# Dismiss Expo dev menu if showing
+- tapOn:
+    text: "Continue"
+    optional: true
+# Switch to Sign In tab if needed
+- tapOn:
+    text: "Sign In"
+    optional: true
+# Fill email
+- tapOn:
+    id: "auth-email-input"
+- inputText: "ajsworld@gmail.com"
+- hideKeyboard
+# Fill password
+- tapOn:
+    id: "auth-password-input"
+- inputText: "abc123"
+- hideKeyboard
+# Submit
+- tapOn:
+    id: "auth-submit-btn"
+- extendedWaitUntil:
+    visible: "Total balance"
+    timeout: 20000

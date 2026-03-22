@@ -115,6 +115,7 @@ const AuthScreen = () => {
             <View style={styles.inputContainer}>
               <Ionicons name="mail-outline" size={20} color={COLORS.textLight} style={styles.inputIcon} />
               <TextInput
+                testID="auth-email-input"
                 style={styles.input}
                 placeholder="Email"
                 placeholderTextColor={COLORS.textMuted}
@@ -129,6 +130,7 @@ const AuthScreen = () => {
             <View style={styles.inputContainer}>
               <Ionicons name="lock-closed-outline" size={20} color={COLORS.textLight} style={styles.inputIcon} />
               <TextInput
+                testID="auth-password-input"
                 style={[styles.input, { flex: 1 }]}
                 placeholder="Password"
                 placeholderTextColor={COLORS.textMuted}
@@ -157,7 +159,7 @@ const AuthScreen = () => {
               </View>
             )}
 
-            <TouchableOpacity activeOpacity={0.7} style={styles.submitBtn} onPress={handleSubmit} disabled={loading}>
+            <TouchableOpacity testID="auth-submit-btn" activeOpacity={0.7} style={styles.submitBtn} onPress={handleSubmit} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : (
                 <Text style={styles.submitText}>{mode === 'login' ? 'Sign In' : 'Create Account'}</Text>
               )}

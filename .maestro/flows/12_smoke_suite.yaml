@@ -68,7 +68,7 @@ name: "SMOKE: Full critical path smoke test"
     visible: "New Group"
     timeout: 5000
 - tapOn:
-    label: "group-name-input"
+    id: "group-name-input"
 - inputText: "Smoke Test Group"
 - hideKeyboard
 - tapOn: "Trip"

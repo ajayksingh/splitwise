@@ -14,46 +14,46 @@ name: "EXPENSE-01: Add an expense from FAB"
       visible: "No groups yet"
     flow: |
       - tapOn:
-          id: "add"
-          optional: true
-      - tapOn: "New Group"
-          optional: true
-      - assertVisible: "New Group"
-      - tapOn: "e.g., Goa Trip, Apartment..."
+          id: "fab-add-group"
+      - extendedWaitUntil:
+          visible: "New Group"
+          timeout: 5000
+      - tapOn:
+          id: "group-name-input"
       - inputText: "Test Group"
       - hideKeyboard
       - tapOn: "Create"
+      - assertVisible: "Groups"
 
-# Go back to Home and tap FAB
+# Go back to Home and tap center FAB
 - tapOn: "Home"
+- assertVisible: "Total balance"
 - tapOn:
-    id: "add"
-    optional: true
+    id: "center-add-btn"
 
-# If no FAB id, try the floating + button
+# Group picker appears (no group pre-selected from Home tab)
+- extendedWaitUntil:
+    visible: "Select Group"
+    timeout: 8000
+- tapOn:
+    id: "group-picker-item"
+    index: 0
+
+# Now on main AddExpense form
 - assertVisible: "Add Expense"
 - takeScreenshot: "expense_01_form"
 
 # Fill description
-- tapOn: "What's this expense for?"
+- tapOn:
+    id: "expense-description-input"
 - inputText: "Maestro Dinner Test"
 - hideKeyboard
 
 # Fill amount
-- tapOn: "0.00"
+- tapOn:
+    id: "expense-amount-input"
 - inputText: "1200"
 - hideKeyboard
-
-# Select group (if picker shows)
-- runFlow:
-    when:
-      visible: "Select a group"
-    flow: |
-      - tapOn: "Select a group"
-      - tapOn:
-          index: 0
-          text: "members"
-          optional: true
 
 - takeScreenshot: "expense_02_filled"
 

@@ -8,20 +8,17 @@ name: "GROUPS-02: Create a new group"
 - tapOn: "Groups"
 - assertVisible: "Groups"
 
-# Tap the + button to create group
+# Tap the FAB to open create group screen
 - tapOn:
-    id: "add"
-    optional: true
-- runFlow:
-    when:
-      notVisible: "New Group"
-    flow: |
-      - tapOn: "New Group"
-- assertVisible: "New Group"
-- takeScreenshot: "groups_create_01_modal"
+    id: "fab-add-group"
+- extendedWaitUntil:
+    visible: "New Group"
+    timeout: 5000
+- takeScreenshot: "groups_create_01_form"
 
 # Enter group name
-- tapOn: "e.g., Goa Trip, Apartment..."
+- tapOn:
+    id: "group-name-input"
 - inputText: "Maestro Test Group"
 - hideKeyboard
 

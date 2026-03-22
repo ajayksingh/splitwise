@@ -246,6 +246,7 @@ export const createGroup = async (group) => {
   const newGroup = {
     id: uuidv4(),
     name: group.name,
+    type: group.type || 'other',
     description: group.description || '',
     created_by: group.createdBy,
     members: group.members,
@@ -256,7 +257,8 @@ export const createGroup = async (group) => {
   if (error) throw new Error('Failed to create group: ' + error.message);
 
   const local = {
-    id: newGroup.id, name: newGroup.name, description: newGroup.description,
+    id: newGroup.id, name: newGroup.name, type: newGroup.type,
+    description: newGroup.description,
     createdBy: newGroup.created_by, members: newGroup.members,
     createdAt: newGroup.created_at, updatedAt: newGroup.updated_at,
   };
@@ -289,7 +291,7 @@ export const getGroups = async (userId, userEmail = null) => {
   const deduped = allRows.filter(g => { if (seen.has(g.id)) return false; seen.add(g.id); return true; });
   return deduped
     .map(g => ({
-      id: g.id, name: g.name, description: g.description || '',
+      id: g.id, name: g.name, type: g.type || 'other', description: g.description || '',
       createdBy: g.created_by, members: g.members || [],
       createdAt: g.created_at, updatedAt: g.updated_at,
     }));
@@ -302,7 +304,7 @@ export const getGroup = async (groupId) => {
   }
   const { data } = await supabase.from('groups').select('*').eq('id', groupId).single();
   if (!data) return null;
-  return { id: data.id, name: data.name, description: data.description || '', createdBy: data.created_by, members: data.members || [], createdAt: data.created_at, updatedAt: data.updated_at };
+  return { id: data.id, name: data.name, type: data.type || 'other', description: data.description || '', createdBy: data.created_by, members: data.members || [], createdAt: data.created_at, updatedAt: data.updated_at };
 };
 
 export const updateGroup = async (groupId, updates) => {
@@ -321,7 +323,7 @@ export const updateGroup = async (groupId, updates) => {
     updated_at: new Date().toISOString(),
   }).eq('id', groupId).select().single();
   if (error) throw new Error('Failed to update group');
-  return { id: data.id, name: data.name, description: data.description || '', createdBy: data.created_by, members: data.members || [], createdAt: data.created_at, updatedAt: data.updated_at };
+  return { id: data.id, name: data.name, type: data.type || 'other', description: data.description || '', createdBy: data.created_by, members: data.members || [], createdAt: data.created_at, updatedAt: data.updated_at };
 };
 
 export const addMemberToGroup = async (groupId, user) => {
@@ -347,7 +349,7 @@ export const addMemberToGroup = async (groupId, user) => {
     updated_at: new Date().toISOString(),
   }).eq('id', groupId).select().single();
   if (error) throw new Error('Failed to add member');
-  return { id: data.id, name: data.name, description: data.description || '', createdBy: data.created_by, members: data.members || [], createdAt: data.created_at, updatedAt: data.updated_at };
+  return { id: data.id, name: data.name, type: data.type || 'other', description: data.description || '', createdBy: data.created_by, members: data.members || [], createdAt: data.created_at, updatedAt: data.updated_at };
 };
 
 // --- Expenses ---
@@ -366,14 +368,16 @@ export const addExpense = async (expense) => {
     description: expense.description,
     amount: expense.amount,
     currency: expense.currency,
+    category: expense.category || 'general',
     paid_by: expense.paidBy,
     splits: expense.splits,
+    date: expense.date || new Date().toISOString(),
     created_at: new Date().toISOString(),
   };
   const { error } = await supabase.from('expenses').insert(newExpense);
   if (error) throw new Error('Failed to add expense: ' + error.message);
 
-  const local = { id: newExpense.id, groupId: newExpense.group_id, description: newExpense.description, amount: newExpense.amount, currency: newExpense.currency, paidBy: newExpense.paid_by, splits: newExpense.splits, createdAt: newExpense.created_at };
+  const local = { id: newExpense.id, groupId: newExpense.group_id, description: newExpense.description, amount: newExpense.amount, currency: newExpense.currency, category: newExpense.category, paidBy: newExpense.paid_by, splits: newExpense.splits, date: newExpense.date, createdAt: newExpense.created_at };
   await addActivity({ type: 'expense_added', expenseId: local.id, description: local.description, amount: local.amount, groupId: local.groupId, groupName: expense.groupName, userId: local.paidBy.id, paidByName: local.paidBy.name, createdAt: new Date().toISOString() });
   return local;
 };
@@ -384,7 +388,7 @@ export const getExpenses = async (groupId) => {
     return expenses.filter(e => e.groupId === groupId).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
   const { data } = await supabase.from('expenses').select('*').eq('group_id', groupId).order('created_at', { ascending: false });
-  return (data || []).map(e => ({ id: e.id, groupId: e.group_id, description: e.description, amount: e.amount, currency: e.currency, paidBy: e.paid_by, splits: e.splits || [], createdAt: e.created_at }));
+  return (data || []).map(e => ({ id: e.id, groupId: e.group_id, description: e.description, amount: e.amount, currency: e.currency, category: e.category || 'general', paidBy: e.paid_by, splits: e.splits || [], date: e.date || e.created_at, createdAt: e.created_at }));
 };
 
 export const getAllExpenses = async (userId) => {
@@ -399,7 +403,7 @@ export const getAllExpenses = async (userId) => {
   const { data } = await supabase.from('expenses').select('*').in('group_id', groupIds).order('created_at', { ascending: false }).limit(500);
   return (data || [])
     .filter(e => e.paid_by?.id === userId || (e.splits || []).some(s => s.userId === userId))
-    .map(e => ({ id: e.id, groupId: e.group_id, description: e.description, amount: e.amount, currency: e.currency, paidBy: e.paid_by, splits: e.splits || [], createdAt: e.created_at }));
+    .map(e => ({ id: e.id, groupId: e.group_id, description: e.description, amount: e.amount, currency: e.currency, category: e.category || 'general', paidBy: e.paid_by, splits: e.splits || [], date: e.date || e.created_at, createdAt: e.created_at }));
 };
 
 export const deleteExpense = async (expenseId) => {

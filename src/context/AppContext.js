@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 // Lazy-require only on native
 const NetInfo = Platform.OS !== 'web' ? require('@react-native-community/netinfo').default : null;
 import {
-  getCurrentUser, loginUser, registerUser, logoutUser,
+  getCurrentUser, loginUser, registerUser, logoutUser, resetPasswordForEmail,
   getGroups, getFriends, calculateBalances,
   getActivity, seedDemoData,
 } from '../services/storage';
@@ -216,6 +216,10 @@ export const AppProvider = ({ children }) => {
     setSyncStatus(null);
   };
 
+  const resetPassword = async (email) => {
+    await resetPasswordForEmail(email);
+  };
+
   const totalBalance = balances.reduce((sum, b) => sum + b.amount, 0);
 
   return (
@@ -223,7 +227,7 @@ export const AppProvider = ({ children }) => {
       user, setUser, loading,
       groups, friends, balances, activity,
       totalBalance, currency, setCurrency,
-      login, register, logout,
+      login, register, logout, resetPassword,
       refresh, loadData, syncData,
       // Sync & network
       isOnline, syncStatus, pendingCount,

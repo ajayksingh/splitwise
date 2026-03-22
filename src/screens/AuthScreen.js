@@ -9,7 +9,7 @@ import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants/colors';
 
 const AuthScreen = () => {
-  const { login, register } = useApp();
+  const { login, register, resetPassword } = useApp();
   const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -34,6 +34,22 @@ const AuthScreen = () => {
       } else {
         await register(name.trim(), email.trim().toLowerCase(), password);
       }
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Reset Password', 'Enter your email address above, then tap Forgot Password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await resetPassword(email.trim().toLowerCase());
+      Alert.alert('Check your email', `A password reset link has been sent to ${email.trim().toLowerCase()}.`);
     } catch (e) {
       Alert.alert('Error', e.message);
     } finally {
@@ -148,6 +164,12 @@ const AuthScreen = () => {
             </TouchableOpacity>
 
             {mode === 'login' && (
+              <TouchableOpacity activeOpacity={0.7} style={styles.forgotBtn} onPress={handleForgotPassword}>
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </TouchableOpacity>
+            )}
+
+            {mode === 'login' && (
               <TouchableOpacity activeOpacity={0.7} style={styles.demoBtn} onPress={fillDemo}>
                 <Ionicons name="flash" size={16} color={COLORS.primary} />
                 <Text style={styles.demoText}>Use Demo Account (alice@demo.com)</Text>
@@ -209,9 +231,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12, elevation: 8,
   },
   submitText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  forgotBtn: { alignItems: 'center', marginTop: 10, padding: 8 },
+  forgotText: { color: COLORS.textLight, fontSize: 13, fontWeight: '500' },
   demoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    marginTop: 12, padding: 10,
+    marginTop: 4, padding: 10,
   },
   demoText: { color: COLORS.primary, marginLeft: 6, fontSize: 13, fontWeight: '500' },
   footer: { textAlign: 'center', marginTop: 24, color: 'rgba(255,255,255,0.8)', fontSize: 14 },

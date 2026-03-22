@@ -108,11 +108,11 @@ export const loginUser = async ({ email, password }) => {
     if (error.message.includes('not confirmed') || error.message.includes('Email not confirmed')) {
       throw new Error('Please confirm your email address first. Check your inbox for the confirmation link.');
     }
-    const { data: existingUser } = await supabase.from('users').select('id').eq('email', email).single();
+    const { data: existingUser } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
     if (existingUser) {
       throw new Error('Your account was created before our login system was updated. Please tap "Sign Up" to set a password for your account.');
     }
-    throw new Error('Invalid email or password');
+    throw new Error('No account found with this email. Please sign up first, or check for typos.');
   }
 
   // Fetch profile from Supabase
@@ -128,6 +128,13 @@ export const loginUser = async ({ email, password }) => {
 export const logoutUser = async () => {
   if (supabase) await supabase.auth.signOut().catch(() => {});
   await AsyncStorage.removeItem(KEYS.CURRENT_USER);
+};
+
+export const resetPasswordForEmail = async (email) => {
+  if (DEMO_EMAILS.includes(email)) throw new Error('Demo accounts cannot reset passwords.');
+  if (!isSupabaseConfigured()) throw new Error('No network connection.');
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  if (error) throw new Error(error.message);
 };
 
 export const getCurrentUser = async () => {

@@ -1,0 +1,28 @@
+appId: host.exp.exponent
+name: "HOME-01: Dashboard renders balance, stats, activity"
+---
+- launchApp:
+    clearState: true
+# Login via demo
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- assertVisible: "Total balance"
+- takeScreenshot: "home_01_balance_card"
+
+# Stats grid visible
+- assertVisible: "you're owed"
+- assertVisible: "you owe"
+- takeScreenshot: "home_02_stats"
+
+# Recent activity section
+- assertVisible: "Recent activity"
+- takeScreenshot: "home_03_activity_section"
+
+# Navigate to Activity tab via "See all"
+- tapOn: "See all"
+- assertVisible: "Activity"
+- takeScreenshot: "home_04_activity_tab"
+
+# Back to Home
+- tapOn: "Home"
+- assertVisible: "Total balance"

@@ -1,0 +1,23 @@
+appId: host.exp.exponent
+name: "ACTIVITY-01: Activity screen filter chips work"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- tapOn: "Activity"
+- assertVisible: "Activity"
+- takeScreenshot: "activity_01_all"
+
+# Verify filter chips present
+- assertVisible: "All"
+- takeScreenshot: "activity_02_filter_row"
+
+# Tap a group filter if groups exist
+- runFlow:
+    when:
+      notVisible: "No activity yet"
+    flow: |
+      # Tap All to reset
+      - tapOn: "All"
+      - takeScreenshot: "activity_03_all_selected"

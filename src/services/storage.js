@@ -271,11 +271,23 @@ export const getGroups = async (userId, userEmail = null) => {
   }
 
   if (!isSupabaseConfigured()) return [];
-  const { data } = await supabase.from('groups').select('*').order('created_at', { ascending: false }).limit(200);
-  return (data || [])
-    .filter(g => Array.isArray(g.members) && g.members.some(m =>
-      m.id === userId || (userEmail && m.email && m.email.toLowerCase() === userEmail.toLowerCase())
-    ))
+  // Use contains filter to let Supabase filter by membership server-side
+  // Fall back to fetching all if RPC not available
+  const queries = [
+    supabase.from('groups').select('*').order('created_at', { ascending: false })
+      .filter('members', 'cs', JSON.stringify([{ id: userId }])),
+  ];
+  if (userEmail) {
+    queries.push(
+      supabase.from('groups').select('*').order('created_at', { ascending: false })
+        .filter('members', 'cs', JSON.stringify([{ email: userEmail.toLowerCase() }]))
+    );
+  }
+  const results = await Promise.all(queries);
+  const allRows = results.flatMap(r => r.data || []);
+  const seen = new Set();
+  const deduped = allRows.filter(g => { if (seen.has(g.id)) return false; seen.add(g.id); return true; });
+  return deduped
     .map(g => ({
       id: g.id, name: g.name, description: g.description || '',
       createdBy: g.created_by, members: g.members || [],

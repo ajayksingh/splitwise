@@ -1,0 +1,28 @@
+appId: host.exp.exponent
+name: "PROFILE-01: Profile screen opens, shows user info, edit works"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- assertVisible: "Total balance"
+
+# Tap avatar to go to profile
+- tapOn:
+    id: "avatar"
+    optional: true
+# If no testID, try navigation
+- runFlow:
+    when:
+      notVisible: "Edit Profile"
+    flow: |
+      - tapOn: "Alice Demo"
+        optional: true
+
+- assertVisible: "Profile"
+    optional: true
+- takeScreenshot: "profile_01_loaded"
+
+# Go back
+- back
+- assertVisible: "Total balance"

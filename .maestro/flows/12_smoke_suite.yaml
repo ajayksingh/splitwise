@@ -1,0 +1,119 @@
+appId: host.exp.exponent
+name: "SMOKE: Full critical path smoke test"
+---
+# Force-stop Expo Go first to ensure clean launch state
+- stopApp
+- launchApp
+
+# Expo Go opens to dev server picker — tap the running server to open the app
+- tapOn:
+    text: "exp://10.0.2.2:8081"
+    optional: true
+- tapOn:
+    text: "exp://10.0.0.118:8081"
+    optional: true
+
+# Wait for Splitwise to finish loading
+- extendedWaitUntil:
+    visible: "Splitwise"
+    timeout: 60000
+
+# Dismiss Expo developer menu if it appears
+- tapOn:
+    text: "Continue"
+    optional: true
+
+# If on auth screen, login
+- runFlow:
+    when:
+      visible: "Sign In"
+    file: "helpers/login_demo.yaml"
+
+# Navigate to Home tab (handles case where we're already logged in on another tab)
+- tapOn:
+    text: "Home"
+    optional: true
+
+# Home screen
+- extendedWaitUntil:
+    visible: "Total balance"
+    timeout: 15000
+- takeScreenshot: "smoke_01_home"
+
+# --- NAVIGATION ---
+- tapOn: "Activity"
+- assertVisible: "Activity"
+- takeScreenshot: "smoke_02a_activity"
+
+- tapOn: "Groups"
+- assertVisible: "Groups"
+- takeScreenshot: "smoke_02b_groups"
+
+- tapOn: "Friends"
+- assertVisible: "Friends"
+- takeScreenshot: "smoke_02c_friends"
+
+- tapOn: "Home"
+- assertVisible: "Total balance"
+- takeScreenshot: "smoke_02d_home"
+
+# --- CREATE GROUP ---
+- tapOn: "Groups"
+- extendedWaitUntil:
+    visible: "Groups"
+    timeout: 5000
+- tapOn:
+    id: "fab-add-group"
+- extendedWaitUntil:
+    visible: "New Group"
+    timeout: 5000
+- tapOn:
+    label: "group-name-input"
+- inputText: "Smoke Test Group"
+- hideKeyboard
+- tapOn: "Trip"
+- tapOn: "Create"
+- assertVisible: "Groups"
+- takeScreenshot: "smoke_03_group_created"
+
+# --- ADD EXPENSE ---
+- tapOn: "Home"
+- tapOn:
+    id: "center-add-btn"
+# Group picker opens automatically — select our smoke test group
+- extendedWaitUntil:
+    visible: "Select Group"
+    timeout: 8000
+- tapOn:
+    id: "group-picker-item"
+    index: 0
+# Now on main AddExpense form
+- assertVisible: "Add Expense"
+- tapOn:
+    id: "expense-description-input"
+- inputText: "Smoke Test Expense"
+- hideKeyboard
+- tapOn:
+    id: "expense-amount-input"
+- inputText: "999"
+- hideKeyboard
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: "Total balance"
+    timeout: 15000
+- takeScreenshot: "smoke_04_saved"
+
+# --- VERIFY ACTIVITY ---
+- tapOn: "Activity"
+- assertVisible: "Smoke Test Expense"
+- takeScreenshot: "smoke_05_activity"
+
+# --- PROFILE ---
+- tapOn: "Home"
+- tapOn:
+    id: "header-avatar"
+- assertVisible: "Account"
+- takeScreenshot: "smoke_06_profile"
+- back
+- assertVisible: "Total balance"
+- takeScreenshot: "smoke_07_done"

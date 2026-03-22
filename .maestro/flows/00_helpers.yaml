@@ -1,0 +1,4 @@
+# Shared helper: login with demo account
+# Include this with `runFlow: 00_helpers.yaml` is not supported in Maestro —
+# use individual flows that start from logged-out state.
+appId: host.exp.exponent

@@ -13,7 +13,7 @@ import { formatAmount, SUPPORTED_CURRENCIES } from '../services/currency';
 import { confirmAlert } from '../utils/alert';
 
 const ProfileScreen = ({ navigation }) => {
-  const { user, logout, setUser, balances, groups, currency, refresh } = useApp();
+  const { user, logout, setUser, balances, groups, friends, activity, currency, refresh } = useApp();
   const [showEdit, setShowEdit] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [editPhone, setEditPhone] = useState(user?.phone || '');
@@ -22,6 +22,7 @@ const ProfileScreen = ({ navigation }) => {
 
   const totalOwed = balances.filter(b => b.amount > 0).reduce((s, b) => s + b.amount, 0);
   const totalOwing = balances.filter(b => b.amount < 0).reduce((s, b) => s + Math.abs(b.amount), 0);
+  const totalExpenses = activity.filter(a => a.type === 'expense_added').reduce((s, a) => s + (a.amount || 0), 0);
   const currencyInfo = SUPPORTED_CURRENCIES.find(c => c.code === currency);
 
   const handleSave = async () => {
@@ -64,7 +65,7 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
+      {/* Hero Card */}
       <LinearGradient colors={COLORS.primaryGradient} style={styles.header}>
         <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.8)" />
@@ -76,25 +77,23 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.userName}>{user?.name}</Text>
         <Text style={styles.userEmail}>{user?.email}</Text>
         {user?.phone ? <Text style={styles.userPhone}>{user.phone}</Text> : null}
-      </LinearGradient>
 
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{groups.length}</Text>
-          <Text style={styles.statLabel}>Groups</Text>
+        {/* Stats row inside hero card */}
+        <View style={styles.heroStatsRow}>
+          <View style={[styles.heroStatItem, { backgroundColor: 'rgba(0,212,170,0.18)' }]}>
+            <Text style={styles.heroStatValue}>{formatAmount(totalExpenses, currency)}</Text>
+            <Text style={styles.heroStatLabel}>Total Expenses</Text>
+          </View>
+          <View style={[styles.heroStatItem, { backgroundColor: 'rgba(255,107,107,0.18)' }]}>
+            <Text style={[styles.heroStatValue, { color: '#ff6b6b' }]}>{groups.length}</Text>
+            <Text style={styles.heroStatLabel}>Groups</Text>
+          </View>
+          <View style={[styles.heroStatItem, { backgroundColor: 'rgba(255,217,61,0.18)' }]}>
+            <Text style={[styles.heroStatValue, { color: '#ffd93d' }]}>{friends.length}</Text>
+            <Text style={styles.heroStatLabel}>Friends</Text>
+          </View>
         </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.success }]}>{formatAmount(totalOwed, currency)}</Text>
-          <Text style={styles.statLabel}>Owed to you</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: COLORS.negative }]}>{formatAmount(totalOwing, currency)}</Text>
-          <Text style={styles.statLabel}>You owe</Text>
-        </View>
-      </View>
+      </LinearGradient>
 
       {/* Account Section */}
       <View style={styles.section}>
@@ -186,7 +185,7 @@ const ProfileScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { paddingTop: 60, paddingBottom: 32, alignItems: 'center' },
+  header: { paddingTop: 60, paddingBottom: 24, alignItems: 'center', backgroundColor: '#1a1a24' },
   backBtn: { position: 'absolute', top: 60, left: 16, padding: 4 },
   profileTop: { position: 'relative', marginBottom: 12 },
   editBadge: {
@@ -197,16 +196,14 @@ const styles = StyleSheet.create({
   userName: { fontSize: 24, fontWeight: '800', color: '#fff' },
   userEmail: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
   userPhone: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  statsRow: {
-    flexDirection: 'row', backgroundColor: COLORS.white,
-    marginHorizontal: 16, marginTop: -20, borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 6,
+  heroStatsRow: {
+    flexDirection: 'row', marginTop: 20, marginHorizontal: 16, gap: 8,
   },
-  statItem: { flex: 1, alignItems: 'center' },
-  statDivider: { width: 1, backgroundColor: COLORS.border },
-  statValue: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  statLabel: { fontSize: 11, color: COLORS.textLight, marginTop: 2 },
+  heroStatItem: {
+    flex: 1, borderRadius: 16, padding: 12, alignItems: 'center',
+  },
+  heroStatValue: { fontSize: 18, fontWeight: '800', color: '#ffffff' },
+  heroStatLabel: { fontSize: 11, color: '#a1a1aa', marginTop: 3 },
   section: { backgroundColor: COLORS.white, marginHorizontal: 16, marginTop: 16, borderRadius: 16, overflow: 'hidden' },
   sectionTitle: { fontSize: 13, fontWeight: '600', color: COLORS.textLight, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
   menuRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: 1, borderTopColor: COLORS.border },

@@ -41,7 +41,21 @@ const AuthScreen = () => {
     }
   };
 
-  const fillDemo = () => { setEmail('alice@demo.com'); setPassword('demo123'); };
+  const fillDemo = async () => {
+    const demoEmail = 'alice@demo.com';
+    const demoPassword = 'demo123';
+    setMode('login');
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setLoading(true);
+    try {
+      await login(demoEmail, demoPassword);
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <LinearGradient colors={COLORS.primaryGradient} style={styles.gradient}>
@@ -165,8 +179,9 @@ const styles = StyleSheet.create({
   appName: { fontSize: 34, fontWeight: '800', color: '#fff', letterSpacing: -1 },
   tagline: { fontSize: 14, color: 'rgba(255,255,255,0.75)', marginTop: 4, letterSpacing: 0.2 },
   card: {
-    backgroundColor: '#fff', borderRadius: 28, padding: 24,
-    shadowColor: 'rgba(99,102,241,0.2)', shadowOffset: { width: 0, height: 12 },
+    backgroundColor: '#1a1a24', borderRadius: 28, padding: 24,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: 'rgba(0,212,170,0.15)', shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 1, shadowRadius: 28, elevation: 12,
   },
   toggle: {
@@ -174,7 +189,7 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 4, marginBottom: 20,
   },
   toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12 },
-  toggleActive: { backgroundColor: '#fff', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 2 },
+  toggleActive: { backgroundColor: 'rgba(255,255,255,0.08)', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 2 },
   toggleText: { fontSize: 15, fontWeight: '500', color: COLORS.textLight },
   toggleTextActive: { color: COLORS.primary, fontWeight: '700' },
   inputContainer: {

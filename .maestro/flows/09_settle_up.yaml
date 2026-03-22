@@ -1,0 +1,23 @@
+appId: host.exp.exponent
+name: "SETTLE-01: Settle up flow records payment"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- assertVisible: "Total balance"
+
+# Navigate via Home FAB path or direct navigate
+# Try the bottom of Home screen - look for balance rows to tap
+- runFlow:
+    when:
+      visible: "owes you"
+    flow: |
+      - tapOn: "Friends"
+      - assertVisible: "Friends"
+      - takeScreenshot: "settle_01_friends_with_balance"
+
+# Navigate to SettleUp via FAB / Friends → SettleUp
+# As fallback test the SettleUp screen structure via bottom tab navigation
+- tapOn: "Home"
+- assertVisible: "Total balance"

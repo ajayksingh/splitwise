@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -13,6 +14,12 @@ import { formatAmount, getCurrencySymbol } from '../services/currency';
 import { formatCurrency, getSimplifiedDebts } from '../utils/splitCalculator';
 import { confirmAlert } from '../utils/alert';
 
+const PAYMENT_METHODS = [
+  { key: 'upi',  label: 'UPI',           icon: 'wallet',   color: '#00d4aa' },
+  { key: 'cash', label: 'Cash',          icon: 'cash',     color: '#ff6b6b' },
+  { key: 'bank', label: 'Bank Transfer', icon: 'business', color: '#a55eea' },
+];
+
 const SettleUpScreen = ({ route, navigation }) => {
   const { user, balances: globalBalances, friends, currency, refresh } = useApp();
   const { group, members } = route.params || {};
@@ -23,7 +30,12 @@ const SettleUpScreen = ({ route, navigation }) => {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState('form'); // form | confirm
+  const [step, setStep] = useState('form'); // 'form' | 'processing' | 'success'
+  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [settledAmount, setSettledAmount] = useState(0);
+  const [settledWith, setSettledWith] = useState(null);
+
+  const spinAnim = useRef(new Animated.Value(0)).current;
 
   const availableMembers = members || globalBalances.map(b => ({ id: b.userId, name: b.name, avatar: b.avatar }));
   const allParties = [
@@ -47,6 +59,26 @@ const SettleUpScreen = ({ route, navigation }) => {
     }
   }, [payer, receiver]);
 
+  // Spin animation for processing state
+  useEffect(() => {
+    if (step === 'processing') {
+      Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      spinAnim.setValue(0);
+    }
+  }, [step]);
+
+  const spin = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   const handleSettle = async () => {
     if (!payer || !receiver) { Alert.alert('Error', 'Select payer and receiver'); return; }
     if (payer.id === receiver.id) { Alert.alert('Error', 'Payer and receiver must be different'); return; }
@@ -65,38 +97,40 @@ const SettleUpScreen = ({ route, navigation }) => {
       });
       refresh();
 
-      // Check if we can notify via WhatsApp
+      // Store for success screen
       const otherParty = payer.id === user.id ? receiver : payer;
+      setSettledAmount(amt);
+      setSettledWith(otherParty);
+
+      // Check if we can notify via WhatsApp
       const friendWithPhone = friends.find(f => f.id === otherParty.id && f.phone);
 
-      if (friendWithPhone) {
-        confirmAlert({
-          title: 'Payment Recorded!',
-          message: `${payer.id === user.id ? 'You' : payer.name} paid ${receiver.id === user.id ? 'you' : receiver.name} ${formatAmount(amt, currency)}`,
-          confirmText: 'Notify via WhatsApp',
-          cancelText: 'Done',
-          onConfirm: async () => {
+      // Transition to processing state
+      setStep('processing');
+
+      setTimeout(() => {
+        setStep('success');
+
+        if (friendWithPhone) {
+          // Show WhatsApp notification after success, but still auto-navigate
+          setTimeout(() => {
             const msg = buildSettlementWhatsAppMessage({
               payerName: payer.id === user.id ? user.name : payer.name,
               receiverName: receiver.id === user.id ? user.name : receiver.name,
               amount: amt,
               currency,
             });
-            await sendWhatsAppMessage(friendWithPhone.phone, msg);
-            navigation.goBack();
-          },
-          onCancel: () => navigation.goBack(),
-        });
-      } else {
-        Alert.alert(
-          'Payment Recorded!',
-          `${formatAmount(amt, currency)} payment logged`,
-          [{ text: 'Done', onPress: () => navigation.goBack() }]
-        );
-      }
+            sendWhatsAppMessage(friendWithPhone.phone, msg).catch(() => {});
+            navigation.navigate('Main');
+          }, 2000);
+        } else {
+          setTimeout(() => {
+            navigation.navigate('Main');
+          }, 2000);
+        }
+      }, 2000);
     } catch (e) {
       Alert.alert('Error', e.message);
-    } finally {
       setSaving(false);
     }
   };
@@ -107,6 +141,36 @@ const SettleUpScreen = ({ route, navigation }) => {
       .concat([{ userId: user.id, name: user.name, amount: -globalBalances.reduce((s, b) => s + b.amount, 0) }])
   );
 
+  // --- Processing state ---
+  if (step === 'processing') {
+    return (
+      <View style={styles.centeredScreen}>
+        <Animated.View style={[styles.spinnerRing, { transform: [{ rotate: spin }] }]} />
+      </View>
+    );
+  }
+
+  // --- Success state ---
+  if (step === 'success') {
+    const name = settledWith?.name || '';
+    const displayName = settledWith?.id === user.id ? 'You' : name;
+    return (
+      <View style={styles.centeredScreen}>
+        <View style={styles.successCircle}>
+          <Ionicons name="checkmark" size={48} color="#ffffff" />
+        </View>
+        <Text style={styles.successTitle}>Payment Successful!</Text>
+        <Text style={styles.successSubtitle}>
+          {'You settled '}
+          <Text style={styles.successAmt}>{formatAmount(settledAmount, currency)}</Text>
+          {' with '}
+          <Text style={styles.successName}>{displayName}</Text>
+        </Text>
+      </View>
+    );
+  }
+
+  // --- Form state ---
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={{ flex: 1 }}>
       <View style={styles.container}>
@@ -175,7 +239,7 @@ const SettleUpScreen = ({ route, navigation }) => {
           <View style={styles.amountSection}>
             <Text style={styles.sectionLabel}>Amount</Text>
             <View style={styles.amountInput}>
-              <Text style={styles.currency}>$</Text>
+              <Text style={styles.currency}>{getCurrencySymbol(currency)}</Text>
               <TextInput
                 style={styles.amountText}
                 value={amount}
@@ -198,6 +262,37 @@ const SettleUpScreen = ({ route, navigation }) => {
               placeholderTextColor={COLORS.textMuted}
               multiline
             />
+          </View>
+
+          {/* Payment Method */}
+          <View style={styles.paymentMethodSection}>
+            <Text style={styles.sectionLabel}>Payment Method</Text>
+            <View style={styles.paymentMethodRow}>
+              {PAYMENT_METHODS.map(method => {
+                const isSelected = paymentMethod === method.key;
+                return (
+                  <TouchableOpacity
+                    key={method.key}
+                    activeOpacity={0.7}
+                    style={[
+                      styles.paymentMethodBtn,
+                      isSelected ? styles.paymentMethodBtnSelected : styles.paymentMethodBtnUnselected,
+                    ]}
+                    onPress={() => setPaymentMethod(method.key)}
+                  >
+                    {isSelected && (
+                      <View style={styles.paymentCheckmark}>
+                        <Ionicons name="checkmark" size={10} color="#fff" />
+                      </View>
+                    )}
+                    <Ionicons name={method.icon} size={22} color={method.color} />
+                    <Text style={[styles.paymentMethodLabel, { color: isSelected ? '#ffffff' : '#a1a1aa' }]}>
+                      {method.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Current Debts */}
@@ -283,6 +378,27 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background, borderRadius: 12, padding: 14, fontSize: 15,
     color: COLORS.text, minHeight: 60,
   },
+  // Payment method
+  paymentMethodSection: { backgroundColor: '#1a1a24', marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 16 },
+  paymentMethodRow: { flexDirection: 'row', gap: 10 },
+  paymentMethodBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 14, borderRadius: 12, position: 'relative',
+  },
+  paymentMethodBtnSelected: {
+    borderWidth: 2, borderColor: '#00d4aa',
+    backgroundColor: 'rgba(0,212,170,0.10)',
+  },
+  paymentMethodBtnUnselected: {
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: '#1a1a24',
+  },
+  paymentMethodLabel: { fontSize: 11, fontWeight: '600', marginTop: 6, textAlign: 'center' },
+  paymentCheckmark: {
+    position: 'absolute', top: 6, right: 6,
+    width: 16, height: 16, borderRadius: 8, backgroundColor: '#00d4aa',
+    alignItems: 'center', justifyContent: 'center',
+  },
   debtsSection: { backgroundColor: COLORS.white, marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 16 },
   debtRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   debtText: { fontSize: 14, color: COLORS.text },
@@ -300,6 +416,28 @@ const styles = StyleSheet.create({
     shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
   },
   settleBtnText: { color: '#fff', fontWeight: '700', fontSize: 16, marginLeft: 8 },
+  // Processing / Success shared
+  centeredScreen: {
+    flex: 1, backgroundColor: '#0a0a0f',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  spinnerRing: {
+    width: 64, height: 64, borderRadius: 32,
+    borderWidth: 4, borderColor: '#00d4aa',
+    borderTopColor: 'transparent',
+  },
+  // Success
+  successCircle: {
+    width: 96, height: 96, borderRadius: 48,
+    backgroundColor: '#00d4aa',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: '#00d4aa', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10,
+  },
+  successTitle: { fontSize: 24, fontWeight: '800', color: '#ffffff', marginBottom: 10 },
+  successSubtitle: { fontSize: 15, color: '#a1a1aa', textAlign: 'center', paddingHorizontal: 32 },
+  successAmt: { color: '#ffffff', fontWeight: '700' },
+  successName: { color: '#00d4aa', fontWeight: '700' },
 });
 
 export default SettleUpScreen;

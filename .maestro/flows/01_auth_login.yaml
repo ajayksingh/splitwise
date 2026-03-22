@@ -1,0 +1,29 @@
+appId: host.exp.exponent
+name: "AUTH-01: Login and logout cycle"
+---
+- launchApp
+# If already logged in, logout first
+- runFlow:
+    when:
+      visible: "Total balance"
+    file: "helpers/logout.yaml"
+
+- assertVisible: "Sign In"
+- tapOn: "Sign In"
+
+# Fill credentials manually
+- tapOn: "Email"
+- inputText: "alice@demo.com"
+- hideKeyboard
+- tapOn: "Password"
+- inputText: "demo123"
+- hideKeyboard
+- tapOn: "Sign In"
+- assertVisible: "Total balance"
+- takeScreenshot: "auth_01_logged_in"
+
+# Now logout
+- runFlow:
+    file: "helpers/logout.yaml"
+- assertVisible: "Sign In"
+- takeScreenshot: "auth_01_logged_out"

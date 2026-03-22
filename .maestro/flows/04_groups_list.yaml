@@ -1,0 +1,37 @@
+appId: host.exp.exponent
+name: "GROUPS-01: Groups tab renders list and navigates to detail"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- assertVisible: "Splitwise"
+
+# Navigate to Groups tab
+- tapOn: "Groups"
+- assertVisible: "Groups"
+- takeScreenshot: "groups_01_list"
+
+# If there are groups, tap one to verify navigation
+- tapOn:
+    text: "Groups"
+    optional: true
+- runFlow:
+    when:
+      visible: "No groups yet"
+    flow: |
+      - takeScreenshot: "groups_02_empty_state"
+- runFlow:
+    when:
+      notVisible: "No groups yet"
+    flow: |
+      - tapOn:
+          index: 0
+          text: "members"
+      - assertVisible: "Expenses"
+      - takeScreenshot: "groups_03_group_detail"
+      - tapOn:
+          id: "chevron-back"
+          optional: true
+      - tapOn:
+          text: "Groups"

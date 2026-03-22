@@ -1,0 +1,16 @@
+appId: host.exp.exponent
+name: "HELPER: Login with demo account"
+---
+# Dismiss Expo dev menu if showing
+- tapOn:
+    text: "Continue"
+    optional: true
+# Make sure we're on Sign In tab
+- tapOn:
+    text: "Sign In"
+    optional: true
+- tapOn: "Use Demo Account (alice@demo.com)"
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Total balance"
+    timeout: 20000

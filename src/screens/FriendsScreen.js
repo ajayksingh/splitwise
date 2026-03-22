@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, Modal, TextInput, ActivityIndicator, SectionList, Platform,
+  Alert, Modal, TextInput, ActivityIndicator, SectionList, Platform, StatusBar,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants/colors';
 import Avatar from '../components/Avatar';
+import BackgroundOrbs from '../components/BackgroundOrbs';
 import { addFriend, registerUser } from '../services/storage';
 import { getContacts, requestContactsPermission, sendWhatsAppMessage } from '../services/contacts';
 import { formatAmount } from '../services/currency';
@@ -111,14 +112,13 @@ const FriendsScreen = ({ navigation }) => {
   const renderFriend = ({ item }) => {
     const balance = getFriendBalance(item.id);
     const hasBalance = balance && Math.abs(balance.amount) > 0.01;
+    const owesThem = balance && balance.amount < 0;
+    const owesUs = balance && balance.amount > 0;
     return (
       <TouchableOpacity
         activeOpacity={0.7}
         style={styles.friendCard}
-        onPress={() => hasBalance && navigation.navigate('SettleUp', {
-          preselectedPayer: balance.amount < 0 ? user.id : item.id,
-          preselectedReceiver: balance.amount < 0 ? item.id : user.id,
-        })}
+        onPress={() => {}}
       >
         <Avatar name={item.name} avatar={item.avatar} size={48} />
         <View style={styles.friendInfo}>
@@ -141,21 +141,60 @@ const FriendsScreen = ({ navigation }) => {
               <Text style={styles.settledUp}>settled up</Text>
             )}
           </View>
-          {item.phone && (
-            <TouchableOpacity activeOpacity={0.7} style={styles.waBtn} onPress={() => handleWhatsAppBalance(item)}>
-              <Text style={styles.waIcon}>💬</Text>
-            </TouchableOpacity>
-          )}
+          {/* BUG-008: Action buttons — Remind if they owe you, Settle if you owe them */}
+          <View style={styles.actionRow}>
+            {owesUs && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.actionPill}
+                onPress={() => handleWhatsAppBalance(item)}
+              >
+                <Text style={styles.actionPillText}>Remind</Text>
+              </TouchableOpacity>
+            )}
+            {owesThem && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.actionPill}
+                onPress={() => navigation.navigate('SettleUp', {
+                  preselectedPayer: user.id,
+                  preselectedReceiver: item.id,
+                })}
+              >
+                <Text style={styles.actionPillText}>Settle</Text>
+              </TouchableOpacity>
+            )}
+            {item.phone && (
+              <TouchableOpacity activeOpacity={0.7} style={styles.waBtn} onPress={() => handleWhatsAppBalance(item)}>
+                <Text style={styles.waIcon}>💬</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     );
   };
 
-  const totalOwed = balances.filter(b => b.amount > 0).reduce((s, b) => s + b.amount, 0);
-  const totalOwing = balances.filter(b => b.amount < 0).reduce((s, b) => s + Math.abs(b.amount), 0);
+  // BUG-006: Summary grid — counts per Figma spec (not amounts)
+  const oweYouCount = friends.filter(f => { const b = getFriendBalance(f.id); return b && b.amount > 0; }).length;
+  const youOweCount = friends.filter(f => { const b = getFriendBalance(f.id); return b && b.amount < 0; }).length;
+  const settledCount = friends.filter(f => { const b = getFriendBalance(f.id); return !b || Math.abs(b.amount) <= 0.01; }).length;
+
+  // BUG-007: Build categorized sections for SectionList
+  const oweYouFriends = friends.filter(f => { const b = getFriendBalance(f.id); return b && b.amount > 0; });
+  const youOweFriends = friends.filter(f => { const b = getFriendBalance(f.id); return b && b.amount < 0; });
+  const settledFriends = friends.filter(f => { const b = getFriendBalance(f.id); return !b || Math.abs(b.amount) <= 0.01; });
+
+  const sections = [
+    ...(oweYouFriends.length > 0 ? [{ title: 'People who owe you', data: oweYouFriends }] : []),
+    ...(youOweFriends.length > 0 ? [{ title: 'People you owe', data: youOweFriends }] : []),
+    ...(settledFriends.length > 0 ? [{ title: 'Settled up', data: settledFriends }] : []),
+  ];
 
   return (
     <View style={styles.container}>
+      <BackgroundOrbs />
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0f" />
       <View style={styles.header}>
         <Text style={styles.title}>Friends</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.addBtn} onPress={() => { setShowAdd(true); setAddMode('email'); }}>
@@ -163,20 +202,21 @@ const FriendsScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {(totalOwed > 0 || totalOwing > 0) && (
-        <View style={styles.summaryRow}>
-          {totalOwed > 0 && (
-            <View style={[styles.summaryCard, { backgroundColor: '#E8FAF6' }]}>
-              <Text style={styles.summaryLabel}>You are owed</Text>
-              <Text style={[styles.summaryAmount, { color: COLORS.success }]}>{formatAmount(totalOwed, currency)}</Text>
-            </View>
-          )}
-          {totalOwing > 0 && (
-            <View style={[styles.summaryCard, { backgroundColor: '#FFF0EE' }]}>
-              <Text style={styles.summaryLabel}>You owe</Text>
-              <Text style={[styles.summaryAmount, { color: COLORS.negative }]}>{formatAmount(totalOwing, currency)}</Text>
-            </View>
-          )}
+      {/* BUG-006: 3-column summary grid with counts */}
+      {friends.length > 0 && (
+        <View style={styles.summaryGrid}>
+          <View style={styles.statCard}>
+            <Text style={[styles.statCount, { color: '#00d4aa' }]}>{oweYouCount}</Text>
+            <Text style={styles.statLabel}>owe you</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statCount, { color: '#ff6b6b' }]}>{youOweCount}</Text>
+            <Text style={styles.statLabel}>you owe</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statCount, { color: '#a1a1aa' }]}>{settledCount}</Text>
+            <Text style={styles.statLabel}>settled</Text>
+          </View>
         </View>
       )}
 
@@ -199,10 +239,14 @@ const FriendsScreen = ({ navigation }) => {
           </View>
         </View>
       ) : (
-        <FlatList
-          data={friends}
+        /* BUG-007: Categorized SectionList replacing flat FlatList */
+        <SectionList
+          sections={sections}
           keyExtractor={item => item.id}
           renderItem={renderFriend}
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={styles.sectionHeader}>{title}</Text>
+          )}
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={
@@ -346,22 +390,25 @@ const FriendsScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: '#0a0a0f' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 60, paddingHorizontal: 20, paddingBottom: 16,
-    backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14,
+    backgroundColor: 'rgba(10,10,15,0.95)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   title: { fontSize: 28, fontWeight: '800', color: COLORS.text },
   addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  summaryRow: { flexDirection: 'row', margin: 16, gap: 10 },
-  summaryCard: { flex: 1, borderRadius: 12, padding: 14 },
-  summaryLabel: { fontSize: 12, color: COLORS.textLight, marginBottom: 4 },
-  summaryAmount: { fontSize: 20, fontWeight: '700' },
+  // BUG-006: 3-column stat grid
+  summaryGrid: { flexDirection: 'row', marginHorizontal: 16, marginTop: 16, marginBottom: 8, gap: 10 },
+  statCard: { flex: 1, backgroundColor: '#1a1a24', borderRadius: 16, padding: 16, alignItems: 'center' },
+  statCount: { fontSize: 24, fontWeight: '700' },
+  statLabel: { fontSize: 12, color: '#a1a1aa', marginTop: 4 },
+  // BUG-007: Section headers
+  sectionHeader: { fontSize: 12, fontWeight: '700', color: '#a1a1aa', textTransform: 'uppercase', marginHorizontal: 16, marginTop: 16, marginBottom: 4 },
   friendCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white,
-    marginHorizontal: 16, marginTop: 10, borderRadius: 14, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a24',
+    marginHorizontal: 16, marginTop: 8, borderRadius: 20, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
   friendInfo: { flex: 1, marginLeft: 12 },
   friendName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
@@ -372,7 +419,14 @@ const styles = StyleSheet.create({
   balanceLabel: { fontSize: 12, fontWeight: '500' },
   balanceAmount: { fontSize: 16, fontWeight: '700' },
   settledUp: { fontSize: 13, color: COLORS.textMuted, fontStyle: 'italic' },
-  waBtn: { backgroundColor: '#E8FFF0', borderRadius: 20, width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+  // BUG-008: Action row with pill buttons
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  actionPill: {
+    backgroundColor: 'rgba(0,212,170,0.12)', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 5,
+  },
+  actionPillText: { fontSize: 12, fontWeight: '600', color: '#00d4aa' },
+  waBtn: { backgroundColor: COLORS.primaryLight, borderRadius: 20, width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
   waIcon: { fontSize: 16 },
   importContactsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, margin: 16, backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1.5, borderColor: COLORS.primary, borderStyle: 'dashed' },
   importContactsText: { color: COLORS.primary, fontWeight: '600', marginLeft: 8 },
@@ -382,7 +436,7 @@ const styles = StyleSheet.create({
   emptyBtns: { flexDirection: 'row', gap: 12, marginTop: 20 },
   addFriendBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11 },
   addFriendBtnText: { color: '#fff', fontWeight: '700', marginLeft: 6, fontSize: 13 },
-  modal: { flex: 1, backgroundColor: COLORS.white, padding: 20 },
+  modal: { flex: 1, backgroundColor: COLORS.background, padding: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingTop: 12 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   cancelText: { fontSize: 16, color: COLORS.textLight },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Alert, Modal, KeyboardAvoidingView, Platform,
@@ -12,13 +12,14 @@ import { sendWhatsAppMessage, buildExpenseWhatsAppMessage } from '../services/co
 import { SPLIT_TYPES, calculateEqualSplit, calculatePercentageSplit, calculateSharesSplit, formatCurrency } from '../utils/splitCalculator';
 import { formatAmount, getCurrencySymbol } from '../services/currency';
 import { confirmAlert } from '../utils/alert';
+import { hapticMedium, hapticSuccess, hapticError } from '../utils/haptics';
 
 const AddExpenseScreen = ({ route, navigation }) => {
   const { user, groups, friends, currency, refresh, notifyWrite } = useApp();
   const { groupId: initGroupId, groupName: initGroupName, members: initMembers } = route.params || {};
 
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
+  const descriptionRef = useRef('');
+  const amountRef = useRef('');
   const [category, setCategory] = useState('general');
   const [paidBy, setPaidBy] = useState(null);
   const [splitType, setSplitType] = useState(SPLIT_TYPES.EQUAL);
@@ -46,7 +47,7 @@ const AddExpenseScreen = ({ route, navigation }) => {
   }, [selectedGroup]);
 
   const getSplits = () => {
-    const amt = parseFloat(amount);
+    const amt = parseFloat(amountRef.current);
     if (isNaN(amt) || amt <= 0) return [];
     switch (splitType) {
       case SPLIT_TYPES.EQUAL:
@@ -63,8 +64,8 @@ const AddExpenseScreen = ({ route, navigation }) => {
   };
 
   const validate = () => {
-    if (!description.trim()) { Alert.alert('Error', 'Add a description'); return false; }
-    const amt = parseFloat(amount);
+    if (!descriptionRef.current.trim()) { Alert.alert('Error', 'Add a description'); return false; }
+    const amt = parseFloat(amountRef.current);
     if (isNaN(amt) || amt <= 0) { Alert.alert('Error', 'Enter a valid amount'); return false; }
     if (!selectedGroup) { Alert.alert('Error', 'Select a group'); return false; }
     if (!paidBy) { Alert.alert('Error', 'Select who paid'); return false; }
@@ -86,13 +87,14 @@ const AddExpenseScreen = ({ route, navigation }) => {
   };
 
   const handleSave = async () => {
-    if (!validate()) return;
+    if (!validate()) { hapticError(); return; }
+    hapticMedium();
     setSaving(true);
     try {
       const splits = getSplits();
       const expense = await addExpense({
-        description: description.trim(),
-        amount: parseFloat(amount),
+        description: descriptionRef.current.trim(),
+        amount: parseFloat(amountRef.current),
         currency,
         category,
         groupId: selectedGroup.id,
@@ -101,6 +103,7 @@ const AddExpenseScreen = ({ route, navigation }) => {
         splits,
         date: new Date().toISOString(),
       });
+      hapticSuccess();
       refresh();
       notifyWrite('add_expense');
 
@@ -172,10 +175,10 @@ const AddExpenseScreen = ({ route, navigation }) => {
             <View style={styles.amountInputContainer}>
               <Text style={styles.currencySymbol}>{getCurrencySymbol(currency)}</Text>
               <TextInput
+                testID="expense-amount-input"
                 style={styles.amountInput}
                 placeholder="0.00"
-                value={amount}
-                onChangeText={setAmount}
+                onChangeText={v => { amountRef.current = v; }}
                 keyboardType="decimal-pad"
                 placeholderTextColor={COLORS.textMuted}
               />
@@ -185,11 +188,14 @@ const AddExpenseScreen = ({ route, navigation }) => {
           {/* Description */}
           <View style={styles.field}>
             <TextInput
+              testID="expense-description-input"
               style={styles.descInput}
               placeholder="What's this expense for?"
-              value={description}
-              onChangeText={setDescription}
+              onChangeText={v => { descriptionRef.current = v; }}
               placeholderTextColor={COLORS.textMuted}
+              autoCorrect={false}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
           </View>
 
@@ -322,7 +328,7 @@ const AddExpenseScreen = ({ route, navigation }) => {
               <View style={{ width: 50 }} />
             </View>
             {groups.map(g => (
-              <TouchableOpacity activeOpacity={0.7} key={g.id} style={styles.pickerItem} onPress={() => { setSelectedGroup(g); setShowGroupPicker(false); }}>
+              <TouchableOpacity testID="group-picker-item" activeOpacity={0.7} key={g.id} style={styles.pickerItem} onPress={() => { setSelectedGroup(g); setShowGroupPicker(false); }}>
                 <View style={styles.pickerIcon}><Ionicons name="people" size={20} color={COLORS.primary} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.pickerName}>{g.name}</Text>

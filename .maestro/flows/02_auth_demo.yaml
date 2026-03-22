@@ -1,0 +1,14 @@
+appId: host.exp.exponent
+name: "AUTH-02: Demo account quick login"
+---
+- launchApp
+- runFlow:
+    when:
+      visible: "Total balance"
+    file: "helpers/logout.yaml"
+
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account (alice@demo.com)"
+- assertVisible: "Total balance"
+- assertVisible: "Splitwise"
+- takeScreenshot: "auth_02_demo_home"

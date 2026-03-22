@@ -1,0 +1,36 @@
+appId: host.exp.exponent
+name: "GROUPS-02: Create a new group"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- tapOn: "Groups"
+- assertVisible: "Groups"
+
+# Tap the + button to create group
+- tapOn:
+    id: "add"
+    optional: true
+- runFlow:
+    when:
+      notVisible: "New Group"
+    flow: |
+      - tapOn: "New Group"
+- assertVisible: "New Group"
+- takeScreenshot: "groups_create_01_modal"
+
+# Enter group name
+- tapOn: "e.g., Goa Trip, Apartment..."
+- inputText: "Maestro Test Group"
+- hideKeyboard
+
+# Select Trip type
+- tapOn: "Trip"
+- takeScreenshot: "groups_create_02_type_selected"
+
+# Create
+- tapOn: "Create"
+- assertVisible: "Groups"
+- assertVisible: "Maestro Test Group"
+- takeScreenshot: "groups_create_03_success"

@@ -1,108 +1,117 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, Modal, TextInput, StatusBar,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
 } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 import { useFocusEffect } from '@react-navigation/native';
+import { hapticMedium } from '../utils/haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS, GROUP_TYPES } from '../constants/colors';
 import Avatar from '../components/Avatar';
-import { createGroup, getExpenses } from '../services/storage';
-import { formatCurrency } from '../utils/splitCalculator';
+import BackgroundOrbs from '../components/BackgroundOrbs';
+import { getExpenses } from '../services/storage';
+import { formatAmount } from '../services/currency';
 
 const GroupsScreen = ({ navigation }) => {
-  const { user, groups, friends, refresh } = useApp();
-  const [showCreate, setShowCreate] = useState(false);
-  const [groupName, setGroupName] = useState('');
-  const [groupType, setGroupType] = useState('other');
-  const [selectedMembers, setSelectedMembers] = useState([]);
-  const [creating, setCreating] = useState(false);
+  const { groups, currency, refresh } = useApp();
+  const [groupTotals, setGroupTotals] = useState({});
+
+  const fabScale = useSharedValue(1);
+  const fabAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
+
+  const handleFabPress = () => {
+    hapticMedium();
+    fabScale.value = withSequence(
+      withSpring(0.87, { damping: 8, stiffness: 400 }),
+      withSpring(1, { damping: 12, stiffness: 300 })
+    );
+    navigation.navigate('CreateGroup');
+  };
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  const handleCreateGroup = async () => {
-    if (!groupName.trim()) { Alert.alert('Error', 'Enter group name'); return; }
-    setCreating(true);
-    try {
-      console.log('[CreateGroup] START user=', JSON.stringify(user));
-      const members = [
-        { id: user.id, name: user.name, email: user.email, avatar: user.avatar },
-        ...selectedMembers,
-      ];
-      console.log('[CreateGroup] members=', members.length, 'name=', groupName.trim());
-      const result = await createGroup({ name: groupName.trim(), type: groupType, members, createdBy: user.id });
-      console.log('[CreateGroup] SUCCESS id=', result?.id);
-      setShowCreate(false);
-      setGroupName('');
-      setSelectedMembers([]);
-      setGroupType('other');
-      refresh();
-    } catch (e) {
-      console.error('[CreateGroup] FAILED:', e?.message, e?.stack);
-      Alert.alert('Error', e.message);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const toggleMember = (friend) => {
-    setSelectedMembers(prev =>
-      prev.find(m => m.id === friend.id)
-        ? prev.filter(m => m.id !== friend.id)
-        : [...prev, { id: friend.id, name: friend.name, email: friend.email, avatar: friend.avatar }]
-    );
-  };
+  // Load total expenses per group
+  useEffect(() => {
+    if (!groups.length) return;
+    const load = async () => {
+      const totals = {};
+      await Promise.all(groups.map(async (g) => {
+        try {
+          const expenses = await getExpenses(g.id);
+          totals[g.id] = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+        } catch { totals[g.id] = 0; }
+      }));
+      setGroupTotals(totals);
+    };
+    load();
+  }, [groups]);
 
   const renderGroup = ({ item }) => {
     const typeInfo = GROUP_TYPES.find(t => t.id === item.type) || GROUP_TYPES[3];
+    const total = groupTotals[item.id] || 0;
     return (
       <TouchableOpacity
         activeOpacity={0.7}
         style={styles.groupCard}
         onPress={() => navigation.navigate('GroupDetail', { groupId: item.id })}
       >
-        <View style={[styles.groupIcon, { backgroundColor: COLORS.primaryLight }]}>
-          <Ionicons name={typeInfo.icon} size={22} color={COLORS.primary} />
+        <View style={styles.groupIconBox}>
+          <Text style={styles.groupEmoji}>{typeInfo.emoji}</Text>
         </View>
         <View style={styles.groupInfo}>
           <Text style={styles.groupName}>{item.name}</Text>
-          <Text style={styles.groupMeta}>{item.members.length} members</Text>
+          <View style={styles.groupMetaRow}>
+            <Text style={styles.groupMeta}>{item.members.length} member{item.members.length !== 1 ? 's' : ''}</Text>
+            {total > 0 && (
+              <>
+                <Text style={styles.groupMetaDot}>·</Text>
+                <Text style={styles.groupMetaTotal}>{formatAmount(total, currency)} total</Text>
+              </>
+            )}
+          </View>
         </View>
-        <View style={styles.groupMembersRow}>
-          {item.members.slice(0, 3).map((m, idx) => (
-            <View key={m.id} style={[styles.memberAvatar, { marginLeft: idx > 0 ? -8 : 0 }]}>
-              <Avatar name={m.name} avatar={m.avatar} size={26} />
-            </View>
-          ))}
-          {item.members.length > 3 && (
-            <View style={[styles.memberAvatar, styles.memberMore, { marginLeft: -8 }]}>
-              <Text style={styles.memberMoreText}>+{item.members.length - 3}</Text>
-            </View>
-          )}
+        <View style={styles.groupRight}>
+          <View style={styles.memberAvatarRow}>
+            {item.members.slice(0, 3).map((m, idx) => (
+              <View key={m.id} style={[styles.memberAvatarWrap, { marginLeft: idx > 0 ? -10 : 0, zIndex: 3 - idx }]}>
+                <Avatar name={m.name} avatar={m.avatar} size={28} />
+              </View>
+            ))}
+            {item.members.length > 3 && (
+              <View style={[styles.memberAvatarWrap, styles.memberMore, { marginLeft: -10 }]}>
+                <Text style={styles.memberMoreText}>+{item.members.length - 3}</Text>
+              </View>
+            )}
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} style={{ marginTop: 6 }} />
         </View>
-        <Ionicons name="chevron-forward" size={18} color={COLORS.textLight} style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <BackgroundOrbs />
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a0f" />
       <View style={styles.header}>
         <Text style={styles.title}>Groups</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.addBtn} onPress={() => setShowCreate(true)}>
-          <Ionicons name="add" size={24} color={COLORS.primary} />
+        <TouchableOpacity testID="add-group-btn" accessibilityLabel="add" activeOpacity={0.7} style={styles.addBtn} onPress={() => navigation.navigate('CreateGroup')}>
+          <Ionicons name="add" size={22} color={COLORS.primary} />
         </TouchableOpacity>
       </View>
 
       {groups.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="people-outline" size={64} color={COLORS.textMuted} />
+          <Text style={styles.emptyEmoji}>👥</Text>
           <Text style={styles.emptyTitle}>No groups yet</Text>
-          <Text style={styles.emptyText}>Create a group to start splitting expenses</Text>
-          <TouchableOpacity activeOpacity={0.7} style={styles.createBtn} onPress={() => setShowCreate(true)}>
-            <Ionicons name="add" size={20} color="#fff" />
+          <Text style={styles.emptyText}>Create a group to start splitting expenses with friends</Text>
+          <TouchableOpacity activeOpacity={0.7} style={styles.createBtn} onPress={() => navigation.navigate('CreateGroup')}>
+            <Ionicons name="add" size={20} color="#0a0a0f" />
             <Text style={styles.createBtnText}>New Group</Text>
           </TouchableOpacity>
         </View>
@@ -111,125 +120,87 @@ const GroupsScreen = ({ navigation }) => {
           data={groups}
           keyExtractor={item => item.id}
           renderItem={renderGroup}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* Create Group Modal */}
-      <Modal visible={showCreate} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity activeOpacity={0.7} onPress={() => setShowCreate(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>New Group</Text>
-            <TouchableOpacity activeOpacity={0.7} onPress={handleCreateGroup} disabled={creating}>
-              <Text style={[styles.saveText, creating && { opacity: 0.5 }]}>Create</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.fieldLabel}>Group Name</Text>
-          <TextInput
-            style={styles.textInput}
-            placeholder="e.g., Apartment, Road Trip..."
-            value={groupName}
-            onChangeText={setGroupName}
-            autoFocus
-          />
-
-          <Text style={styles.fieldLabel}>Type</Text>
-          <View style={styles.typeRow}>
-            {GROUP_TYPES.map(t => (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                key={t.id}
-                style={[styles.typeBtn, groupType === t.id && styles.typeBtnActive]}
-                onPress={() => setGroupType(t.id)}
-              >
-                <Ionicons name={t.icon} size={20} color={groupType === t.id ? '#fff' : COLORS.textLight} />
-                <Text style={[styles.typeLabel, groupType === t.id && styles.typeLabelActive]}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.fieldLabel}>Add Members ({selectedMembers.length} selected)</Text>
-          {friends.length === 0 ? (
-            <Text style={styles.noFriendsText}>No friends yet. Add friends first from the Friends tab.</Text>
-          ) : (
-            friends.map(f => (
-              <TouchableOpacity activeOpacity={0.7} key={f.id} style={styles.friendRow} onPress={() => toggleMember(f)}>
-                <Avatar name={f.name} size={36} />
-                <View style={styles.friendInfo}>
-                  <Text style={styles.friendName}>{f.name}</Text>
-                  <Text style={styles.friendEmail}>{f.email}</Text>
-                </View>
-                <View style={[styles.checkbox, selectedMembers.find(m => m.id === f.id) && styles.checkboxChecked]}>
-                  {selectedMembers.find(m => m.id === f.id) && <Ionicons name="checkmark" size={16} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-      </Modal>
+      {/* FAB for creating groups */}
+      <AnimatedTouchable
+        testID="fab-add-group"
+        activeOpacity={0.85}
+        style={[styles.fab, fabAnimStyle]}
+        onPress={handleFabPress}
+      >
+        <Ionicons name="add" size={28} color="#0a0a0f" />
+      </AnimatedTouchable>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  fab: {
+    position: 'absolute', bottom: 100, right: 24,
+    width: 58, height: 58, borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+  },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 60, paddingHorizontal: 20, paddingBottom: 16,
-    backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14,
+    backgroundColor: 'rgba(10,10,15,0.95)',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   title: { fontSize: 28, fontWeight: '800', color: COLORS.text },
-  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  addBtn: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.primaryLight,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(0,212,170,0.2)',
+  },
+
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100 },
   groupCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.white, marginHorizontal: 16, marginTop: 10,
-    borderRadius: 14, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    backgroundColor: COLORS.white, borderRadius: 20,
+    padding: 16, marginBottom: 10,
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  groupIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  groupIconBox: {
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: COLORS.background,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 14, borderWidth: 1, borderColor: COLORS.border,
+  },
+  groupEmoji: { fontSize: 26 },
   groupInfo: { flex: 1 },
-  groupName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  groupMeta: { fontSize: 13, color: COLORS.textLight, marginTop: 2 },
-  groupMembersRow: { flexDirection: 'row', alignItems: 'center' },
-  memberAvatar: { borderWidth: 2, borderColor: COLORS.white, borderRadius: 15 },
-  memberMore: { width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  memberMoreText: { fontSize: 12, color: COLORS.textLight, fontWeight: '600' },
+  groupName: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  groupMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  groupMeta: { fontSize: 13, color: COLORS.textLight },
+  groupMetaDot: { fontSize: 13, color: COLORS.textMuted },
+  groupMetaTotal: { fontSize: 13, color: COLORS.primary, fontWeight: '600' },
+  groupRight: { alignItems: 'flex-end' },
+  memberAvatarRow: { flexDirection: 'row', alignItems: 'center' },
+  memberAvatarWrap: { borderWidth: 2, borderColor: COLORS.white, borderRadius: 16 },
+  memberMore: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: COLORS.border, alignItems: 'center', justifyContent: 'center',
+  },
+  memberMoreText: { fontSize: 10, color: COLORS.textLight, fontWeight: '700' },
+
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  emptyTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginTop: 16 },
-  emptyText: { fontSize: 15, color: COLORS.textLight, textAlign: 'center', marginTop: 8 },
-  createBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, marginTop: 20 },
-  createBtnText: { color: '#fff', fontWeight: '700', marginLeft: 6 },
-  modal: { flex: 1, backgroundColor: COLORS.white, padding: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingTop: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  cancelText: { fontSize: 16, color: COLORS.textLight },
-  saveText: { fontSize: 16, color: COLORS.primary, fontWeight: '700' },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textLight, marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
-  textInput: {
-    backgroundColor: COLORS.background, borderRadius: 12,
-    padding: 14, fontSize: 16, color: COLORS.text,
+  emptyEmoji: { fontSize: 56, marginBottom: 16 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: COLORS.textLight, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  createBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.primary, borderRadius: 14,
+    paddingHorizontal: 24, paddingVertical: 13,
   },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeBtn: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 20, backgroundColor: COLORS.background, marginBottom: 8,
-  },
-  typeBtnActive: { backgroundColor: COLORS.primary },
-  typeLabel: { fontSize: 13, color: COLORS.textLight, marginLeft: 6 },
-  typeLabelActive: { color: '#fff', fontWeight: '600' },
-  noFriendsText: { fontSize: 14, color: COLORS.textLight, fontStyle: 'italic', marginTop: 8 },
-  friendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  friendInfo: { flex: 1, marginLeft: 12 },
-  friendName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  friendEmail: { fontSize: 13, color: COLORS.textLight },
-  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  createBtnText: { color: '#0a0a0f', fontWeight: '800', marginLeft: 8, fontSize: 15 },
+
 });
 
 export default GroupsScreen;

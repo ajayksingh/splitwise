@@ -87,6 +87,21 @@ export const AppProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  const loadData = useCallback(async () => {
+    if (!userRef.current) return;
+    try {
+      const [g, f, b, a] = await Promise.all([
+        getGroups(userRef.current.id, userRef.current.email),
+        getFriends(userRef.current.id),
+        calculateBalances(userRef.current.id),
+        getActivity(userRef.current.id),
+      ]);
+      setGroups(g); setFriends(f); setBalances(b); setActivity(a);
+    } catch (e) {
+      console.error('Load data error:', e);
+    }
+  }, []);
+
   const triggerSync = useCallback(async () => {
     await loadData();
   }, [loadData]);
@@ -103,25 +118,15 @@ export const AppProvider = ({ children }) => {
       Analytics.offlineSave(action);
       return;
     }
-    setSyncStatus('synced');
-    clearSyncStatusAfter(1500);
-    await loadData();
-  }, [isOnline, loadData]);
-
-  const loadData = useCallback(async () => {
-    if (!userRef.current) return;
     try {
-      const [g, f, b, a] = await Promise.all([
-        getGroups(userRef.current.id, userRef.current.email),
-        getFriends(userRef.current.id),
-        calculateBalances(userRef.current.id),
-        getActivity(userRef.current.id),
-      ]);
-      setGroups(g); setFriends(f); setBalances(b); setActivity(a);
+      await loadData();
+      setSyncStatus('synced');
+      clearSyncStatusAfter(1500);
     } catch (e) {
-      console.error('Load data error:', e);
+      setSyncStatus('error');
+      clearSyncStatusAfter(3000);
     }
-  }, []);
+  }, [isOnline, loadData]);
 
   useEffect(() => {
     if (user) {

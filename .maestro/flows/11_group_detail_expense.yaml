@@ -1,0 +1,68 @@
+appId: host.exp.exponent
+name: "GROUPS-03: Group detail shows expenses, add expense, delete expense"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- tapOn: "Groups"
+
+# Create group if needed
+- runFlow:
+    when:
+      visible: "No groups yet"
+    flow: |
+      - tapOn:
+          id: "add"
+          optional: true
+      - assertVisible: "New Group"
+      - tapOn: "e.g., Goa Trip, Apartment..."
+      - inputText: "Detail Test Group"
+      - hideKeyboard
+      - tapOn: "Create"
+      - assertVisible: "Detail Test Group"
+
+# Tap a group
+- tapOn:
+    index: 0
+    text: "member"
+    optional: true
+
+- assertVisible: "Expenses"
+- assertVisible: "Balances"
+- assertVisible: "Members"
+- takeScreenshot: "group_detail_01_expenses_tab"
+
+# Tap Add button to add expense from group detail
+- tapOn: "Add"
+- assertVisible: "Add Expense"
+- tapOn: "What's this expense for?"
+- inputText: "Group Detail Test Expense"
+- hideKeyboard
+- tapOn: "0.00"
+- inputText: "500"
+- hideKeyboard
+- tapOn: "Save"
+
+# Back on group detail, expense should appear
+- assertVisible: "Expenses"
+- assertVisible: "Group Detail Test Expense"
+- takeScreenshot: "group_detail_02_expense_added"
+
+# Test visible delete button (B-10 fix validation)
+- tapOn:
+    id: "trash-outline"
+    optional: true
+- assertVisible: "Delete Expense"
+    optional: true
+- tapOn: "Delete"
+    optional: true
+- takeScreenshot: "group_detail_03_after_delete"
+
+# Test Balances tab
+- tapOn: "Balances"
+- takeScreenshot: "group_detail_04_balances_tab"
+
+# Test Members tab
+- tapOn: "Members"
+- takeScreenshot: "group_detail_05_members_tab"

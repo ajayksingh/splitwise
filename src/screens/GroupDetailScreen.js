@@ -83,6 +83,10 @@ const GroupDetailScreen = ({ route, navigation }) => {
 
   const getCategoryInfo = (cat) => CATEGORIES.find(c => c.id === cat) || CATEGORIES[8];
 
+  const totalSpending = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  const memberCount = group ? group.members.length : 0;
+  const perPersonAvg = memberCount > 0 ? totalSpending / memberCount : 0;
+
   if (loading) return <View style={styles.center}><ActivityIndicator color={COLORS.primary} size="large" /></View>;
   if (!group) return <View style={styles.center}><Text>Group not found</Text></View>;
 
@@ -116,6 +120,44 @@ const GroupDetailScreen = ({ route, navigation }) => {
         ))}
       </View>
 
+      {/* Hero Stats Card */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroGlow} />
+        {/* Row 1: icon + label */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+          <View style={styles.heroIconBox}>
+            <Ionicons name="cash-outline" size={20} color="#00d4aa" />
+          </View>
+          <Text style={styles.heroLabel}>Total group spending</Text>
+        </View>
+        {/* Row 2: total amount */}
+        <Text style={styles.heroAmount}>{formatCurrency(totalSpending)}</Text>
+        {/* Row 3: expense count */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 20 }}>
+          <View style={styles.heroPulseDot} />
+          <Text style={styles.heroExpCount}>{expenses.length} expense{expenses.length !== 1 ? 's' : ''}</Text>
+        </View>
+        {/* 2-column stat grid */}
+        <View style={styles.heroStatGrid}>
+          {/* Left: members */}
+          <View style={styles.heroStatCell}>
+            <View style={styles.heroIconBox}>
+              <Ionicons name="people-outline" size={20} color="#00d4aa" />
+            </View>
+            <Text style={styles.heroStatValue}>{memberCount}</Text>
+            <Text style={styles.heroStatLabel}>members</Text>
+          </View>
+          {/* Right: per person avg */}
+          <View style={styles.heroStatCell}>
+            <View style={styles.heroIconBoxCoral}>
+              <Ionicons name="trending-up-outline" size={20} color="#ff6b6b" />
+            </View>
+            <Text style={styles.heroStatValue}>{formatCurrency(perPersonAvg)}</Text>
+            <Text style={styles.heroStatLabel}>per person avg</Text>
+          </View>
+        </View>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Expenses Tab */}
         {tab === 'expenses' && (
@@ -138,12 +180,7 @@ const GroupDetailScreen = ({ route, navigation }) => {
                 const myShare = exp.splits.find(s => s.userId === user.id);
                 const iPaid = exp.paidBy.id === user.id;
                 return (
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    key={exp.id}
-                    style={styles.expenseCard}
-                    onLongPress={() => handleDeleteExpense(exp)}
-                  >
+                  <View key={exp.id} style={styles.expenseCard}>
                     <View style={[styles.expCatIcon, { backgroundColor: catInfo.color + '20' }]}>
                       <Ionicons name={catInfo.icon} size={20} color={catInfo.color} />
                     </View>
@@ -167,8 +204,15 @@ const GroupDetailScreen = ({ route, navigation }) => {
                       ) : (
                         <Text style={styles.expLabelNeutral}>not involved</Text>
                       )}
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        style={styles.deleteBtn}
+                        onPress={() => handleDeleteExpense(exp)}
+                      >
+                        <Ionicons name="trash-outline" size={14} color={COLORS.textMuted} />
+                      </TouchableOpacity>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 );
               })
             )}
@@ -308,10 +352,97 @@ const styles = StyleSheet.create({
   tabActive: { borderBottomColor: COLORS.primary },
   tabText: { fontSize: 14, color: COLORS.textLight, fontWeight: '500' },
   tabTextActive: { color: COLORS.primary, fontWeight: '700' },
+  heroCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 0,
+    borderRadius: 24,
+    padding: 24,
+    backgroundColor: '#1a1a24',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroGlow: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#00d4aa',
+    opacity: 0.12,
+  },
+  heroIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,212,170,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  heroIconBoxCoral: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,107,107,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  heroLabel: {
+    fontSize: 14,
+    color: '#a1a1aa',
+  },
+  heroAmount: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginTop: 4,
+  },
+  heroPulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#00d4aa',
+    marginRight: 8,
+  },
+  heroExpCount: {
+    fontSize: 13,
+    color: '#a1a1aa',
+  },
+  heroStatGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  heroStatCell: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'flex-start',
+  },
+  heroStatValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginTop: 10,
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: '#a1a1aa',
+    marginTop: 2,
+  },
   expenseCard: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white,
-    marginHorizontal: 16, marginTop: 10, borderRadius: 12, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2,
+    marginHorizontal: 16, marginTop: 10, borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  deleteBtn: {
+    marginTop: 6, padding: 4, alignSelf: 'flex-end',
+    borderRadius: 6, backgroundColor: 'rgba(255,107,107,0.08)',
   },
   expCatIcon: { width: 42, height: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   expInfo: { flex: 1 },

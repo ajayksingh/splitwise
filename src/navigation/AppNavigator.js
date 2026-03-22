@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, Platform, useWindowDimensions, TouchableOpacity } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withSpring } from 'react-native-reanimated';
 import { NavigationContainer } from '@react-navigation/native';
 
 const linking = Platform.OS !== 'web' ? {
@@ -17,6 +18,7 @@ const linking = Platform.OS !== 'web' ? {
       },
       GroupDetail: 'group/:groupId',
       Profile: 'profile',
+      CreateGroup: 'create-group',
     },
   },
 } : undefined;
@@ -26,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants/colors';
+import { hapticSelection } from '../utils/haptics';
 import SyncBanner from '../components/SyncBanner';
 
 import AuthScreen from '../screens/AuthScreen';
@@ -38,11 +41,37 @@ import ActivityScreen from '../screens/ActivityScreen';
 import SettleUpScreen from '../screens/SettleUpScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import CurrencyScreen from '../screens/CurrencyScreen';
+import CreateGroupScreen from '../screens/CreateGroupScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const MainTabs = () => (
+const AnimatedTabIcon = ({ name, focused, color }) => {
+  const scale = useSharedValue(1);
+  const translateY = useSharedValue(0);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { translateY: translateY.value }],
+  }));
+  useEffect(() => {
+    if (focused) {
+      scale.value = withSequence(
+        withSpring(1.28, { damping: 7, stiffness: 420 }),
+        withSpring(1, { damping: 14, stiffness: 300 })
+      );
+      translateY.value = withSequence(
+        withSpring(-4, { damping: 7, stiffness: 420 }),
+        withSpring(0, { damping: 14, stiffness: 300 })
+      );
+    }
+  }, [focused]);
+  return (
+    <Animated.View style={animStyle}>
+      <Ionicons name={name} size={22} color={color} />
+    </Animated.View>
+  );
+};
+
+const MainTabs = ({ navigation }) => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
       headerShown: false,
@@ -50,33 +79,65 @@ const MainTabs = () => (
       tabBarActiveTintColor: COLORS.primary,
       tabBarInactiveTintColor: COLORS.textMuted,
       tabBarStyle: {
-        backgroundColor: COLORS.white,
+        backgroundColor: 'rgba(10,10,15,0.95)',
         borderTopColor: COLORS.border,
+        borderTopWidth: 1,
         height: 82,
         paddingBottom: 20,
         paddingTop: 8,
-        shadowColor: COLORS.primary,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.08,
+        shadowOpacity: 0.4,
         shadowRadius: 16,
         elevation: 12,
       },
       tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: 2 },
-      tabBarIcon: ({ focused, color, size }) => {
+      tabBarIcon: ({ focused, color }) => {
         const icons = {
           Home: focused ? 'home' : 'home-outline',
+          Activity: focused ? 'time' : 'time-outline',
           Groups: focused ? 'people' : 'people-outline',
           Friends: focused ? 'person' : 'person-outline',
-          Activity: focused ? 'time' : 'time-outline',
         };
-        return <Ionicons name={icons[route.name]} size={22} color={color} />;
+        return <AnimatedTabIcon name={icons[route.name]} focused={focused} color={color} />;
       },
     })}
+    screenListeners={{ tabPress: () => hapticSelection() }}
   >
     <Tab.Screen name="Home" component={HomeScreen} />
+    <Tab.Screen name="Activity" component={ActivityScreen} />
+    <Tab.Screen
+      name="AddExpenseTab"
+      component={() => null}
+      listeners={() => ({
+        tabPress: (e) => {
+          e.preventDefault();
+        },
+      })}
+      options={{
+        tabBarLabel: () => null,
+        tabBarButton: () => (
+          <TouchableOpacity
+            testID="center-add-btn"
+            activeOpacity={0.85}
+            style={{
+              width: 56, height: 56, borderRadius: 16,
+              backgroundColor: '#00d4aa',
+              alignItems: 'center', justifyContent: 'center',
+              marginTop: -28,
+              shadowColor: '#00d4aa', shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+              alignSelf: 'center',
+            }}
+            onPress={() => navigation.navigate('AddExpense', {})}
+          >
+            <Ionicons name="add" size={28} color="#0a0a0f" />
+          </TouchableOpacity>
+        ),
+      }}
+    />
     <Tab.Screen name="Groups" component={GroupsScreen} />
     <Tab.Screen name="Friends" component={FriendsScreen} />
-    <Tab.Screen name="Activity" component={ActivityScreen} />
   </Tab.Navigator>
 );
 
@@ -103,6 +164,7 @@ const AppNavigator = () => {
                   <Stack.Screen name="SettleUp" component={SettleUpScreen} options={{ presentation: 'modal' }} />
                   <Stack.Screen name="Profile" component={ProfileScreen} options={{ presentation: 'card' }} />
                   <Stack.Screen name="Currency" component={CurrencyScreen} options={{ presentation: 'card' }} />
+                  <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ presentation: 'card' }} />
                 </>
               )}
             </Stack.Navigator>
@@ -117,7 +179,7 @@ const AppNavigator = () => {
 const styles = StyleSheet.create({
   desktopContainer: {
     flex: 1,
-    backgroundColor: '#E8EAF6',
+    backgroundColor: '#050508',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -126,10 +188,13 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     flex: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    shadowColor: '#00d4aa',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 40,
   },
 });
 

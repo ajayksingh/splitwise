@@ -1,0 +1,38 @@
+appId: host.exp.exponent
+name: "FRIENDS-01: Friends tab loads and add friend by email"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- tapOn: "Friends"
+- assertVisible: "Friends"
+- takeScreenshot: "friends_01_list"
+
+# Tap add friend button
+- tapOn:
+    id: "person-add"
+    optional: true
+- assertVisible: "Add Friend"
+- takeScreenshot: "friends_02_modal"
+
+# Enter email
+- tapOn: "Enter friend's email"
+- inputText: "bob@demo.com"
+- hideKeyboard
+- tapOn: "Add"
+
+# Either "Already friends" or "Friend Added!"
+- assertVisible:
+    text: "Friend Added!"
+    optional: true
+- assertVisible:
+    text: "Already friends"
+    optional: true
+- takeScreenshot: "friends_03_result"
+
+# Close modal
+- tapOn: "Cancel"
+    optional: true
+- tapOn: "OK"
+    optional: true

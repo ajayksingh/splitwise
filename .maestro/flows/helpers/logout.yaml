@@ -1,0 +1,10 @@
+appId: host.exp.exponent
+name: "HELPER: Logout"
+---
+- tapOn: "Home"
+- tapOn:
+    id: "header-avatar"
+- assertVisible: "Account"
+- tapOn: "Sign Out"
+- tapOn: "Sign Out"
+- assertVisible: "Sign In"

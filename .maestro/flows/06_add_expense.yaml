@@ -1,0 +1,68 @@
+appId: host.exp.exponent
+name: "EXPENSE-01: Add an expense from FAB"
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sign In"
+- tapOn: "Use Demo Account"
+- assertVisible: "Total balance"
+
+# First create a group if none exists
+- tapOn: "Groups"
+- runFlow:
+    when:
+      visible: "No groups yet"
+    flow: |
+      - tapOn:
+          id: "add"
+          optional: true
+      - tapOn: "New Group"
+          optional: true
+      - assertVisible: "New Group"
+      - tapOn: "e.g., Goa Trip, Apartment..."
+      - inputText: "Test Group"
+      - hideKeyboard
+      - tapOn: "Create"
+
+# Go back to Home and tap FAB
+- tapOn: "Home"
+- tapOn:
+    id: "add"
+    optional: true
+
+# If no FAB id, try the floating + button
+- assertVisible: "Add Expense"
+- takeScreenshot: "expense_01_form"
+
+# Fill description
+- tapOn: "What's this expense for?"
+- inputText: "Maestro Dinner Test"
+- hideKeyboard
+
+# Fill amount
+- tapOn: "0.00"
+- inputText: "1200"
+- hideKeyboard
+
+# Select group (if picker shows)
+- runFlow:
+    when:
+      visible: "Select a group"
+    flow: |
+      - tapOn: "Select a group"
+      - tapOn:
+          index: 0
+          text: "members"
+          optional: true
+
+- takeScreenshot: "expense_02_filled"
+
+# Save
+- tapOn: "Save"
+- assertVisible: "Total balance"
+- takeScreenshot: "expense_03_saved_home"
+
+# Verify in activity
+- tapOn: "Activity"
+- assertVisible: "Maestro Dinner Test"
+- takeScreenshot: "expense_04_in_activity"

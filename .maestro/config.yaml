@@ -1,0 +1,11 @@
+flows:
+  - flows/01_auth_login.yaml
+  - flows/02_auth_demo.yaml
+  - flows/03_home_dashboard.yaml
+  - flows/04_groups_list.yaml
+  - flows/05_create_group.yaml
+  - flows/06_add_expense.yaml
+  - flows/07_activity_filter.yaml
+  - flows/08_friends_add.yaml
+  - flows/09_settle_up.yaml
+  - flows/10_profile.yaml
